@@ -176,8 +176,10 @@ app.post("/picUpload",  function(req,res){
 			var imageFileSize = req.file.size;
 			imageFileSize = getFilesizeInBytes(imageFileSize);
 			console.log(imageFileSize);
+			imageFileSize = Math.round(imageFileSize);
+			console.log('rounded value' + imageFileSize);
 			// Checks if file size is greater than 2mb or not, if yes, it sends audio having >=2mb file zise is not supported
-			if(imageFileSize < 2) {
+			if(imageFileSize <= 2) {
 				getImageDescription(imageFileName, function(imageInformation){
 					console.log("image desc " + imageInformation);
 					if(imageInformation != '') {
