@@ -88,6 +88,13 @@ var mimeNames = {
     '.webm': 'video/webm'
 };
 
+/**
+ * This api returns watson content hub images  alternative desc in audio file
+ *
+ * Gets all watson content hub image desc (text format) and convert them into auido and store into  audio folder
+ *
+ * @res audio file name
+ */
 app.get('/watson-tts', function (req,res) {
 	var tokenId = req.query.tokenId;
 	if(!validateToken(tokenId)){
@@ -97,31 +104,28 @@ app.get('/watson-tts', function (req,res) {
     var text =  getText(req);
     console.log(text + 'text');
     createTTS(text, function(fileName){
-    	//fileName = 'audio/file-1503987646987.wav';
-    	 
+
         var stat = fs.statSync(fileName);
     	if (!fs.existsSync(fileName)) {
-	        //sendResponse(res, 404, null, null);
 	        return null;
         }
         console.log(fileName);
-        //fileName = 'audio/ganapati.mp3';
-        
+
+		//Returns file name
 		res.send('_callback(\'' + fileName +'\')');
     });  
 });
 
 
-function getMimeNameFromExt(ext) {
-    var result = mimeNames[ext.toLowerCase()];
-    
-    // It's better to give a default value.
-    if (result == null)
-        result = 'application/octet-stream';
-    
-    return result;
-}
-
+/**
+ * Creates audio file using text (TTS)
+ *
+ * Using watson TTS api, it creates wav file.
+ * Once wav file is created, it is converted to mp3 using FFMPEG
+ *
+ * @param text
+ * @param callback
+ */
 function createTTS(text,callback){
 	var params = {
 	    text: text,
@@ -133,19 +137,21 @@ function createTTS(text,callback){
 	var fstream = fs.createWriteStream(filePath);
     text_to_speech.synthesize(params).pipe(fstream);
     fstream.on('finish', function() {
+		//Call function that creates mp3 file
     	convertWavToMP3(filePath, function(fileMp3Path){
     	 	console.log(fileMp3Path + ' mp3');
     	 	return callback(fileMp3Path);
     	 });
-           
+
      });
 }
 
-//Mobile uploads starts
+//wavfile name
 wavFileName = 'file-' + Date.now() + '.wav';
 
 var imageContent, capturedImage;
 
+//Multer is used to upload the file sent from mobile app.
 var storage =   multer.diskStorage({
   destination: function (req, file, callback) {
    	  callback(null, './picture');
@@ -157,6 +163,17 @@ var storage =   multer.diskStorage({
 
 var upload =multer({storage : storage}).single('file');
 
+/**
+ * Uploads the file to server folder
+ *
+ * Checks the token validation
+ * Checks image file size, if it exceeds more than 2mb, audio saying  audio file size exceeds returned to app
+ * Get image description using Watson VR API
+ * The text is processed using watson TTS feature and audio file (wav) is created
+ * wav is converted to mp3 using ffmpeg and file name is returned
+ *
+ * @res returns audio file
+ */
 app.post("/picUpload",  function(req,res){
 
 	var myTokenId = req.query.tokenId;
@@ -167,6 +184,7 @@ app.post("/picUpload",  function(req,res){
 		return false;
 	}
 	else{
+		//Makes sure file is successfully uploaded
 		upload(req,res, function(err){
 			if(err) {
 				console.log(' Image file cannot be uploaded');
@@ -174,17 +192,21 @@ app.post("/picUpload",  function(req,res){
 			var imageFileName =  req.file.originalname;
 			var imageFilePath =  req.file.path;
 			var imageFileSize = req.file.size;
+			//Gets image file size
 			imageFileSize = getFilesizeInBytes(imageFileSize);
 			console.log(imageFileSize);
 			imageFileSize = Math.round(imageFileSize);
 			console.log('rounded value' + imageFileSize);
 			// Checks if file size is greater than 2mb or not, if yes, it sends audio having >=2mb file zise is not supported
 			if(imageFileSize <= 2) {
+
+				//Get image description
 				getImageDescription(imageFileName, function(imageInformation){
 					console.log("image desc " + imageInformation);
 					if(imageInformation != '') {
 						imageInformation = "Here is some information about the captured image: " + imageInformation;
 					}
+					//Process text and creates audio
 					createTTS(imageInformation, function(fileName){
 						console.log(fileName);
 						res.send(fileName);
@@ -203,13 +225,24 @@ app.post("/picUpload",  function(req,res){
 });
 
 
-
+/**
+ * Get file size
+ *
+ * @param fileSizeInBytes
+ * @returns {number}
+ */
 function getFilesizeInBytes(fileSizeInBytes) {
 	var fileSizeInMB = fileSizeInBytes / 1000000;
 	return fileSizeInMB
 }
 
-
+/**
+ * Get watson content hub available images
+ *
+ * get image description and convert it to audio using TTS
+ *
+ * Returns audio file name
+ */
 app.get('/getBaseLineImageInfo',function(req, res){
 	//res.send('_callback(\'audio/20170925233008.mp3\')');
 	var tokenId = req.query.tokenId;
@@ -235,7 +268,13 @@ app.get('/getBaseLineImageInfo',function(req, res){
 
 })
 
+/**
+ * Get watson content hub images
+ * @param selection
+ * @param callback
+ */
 function getWHCImageContent(selection, callback){
+
 
     var url = 'https://my15.digitalexperience.ibm.com/api/42228a3a-1b9f-4834-8269-21ef39259228/delivery/v1/search?q=*:*&fl=*&fq=classification:asset&fq=assetType:image&sort=lastModified%20desc&rows=500';
 
@@ -271,7 +310,12 @@ function getWHCImageContent(selection, callback){
 }
 
 
-
+/**
+ * Converts wav file to mp3 using ffmpeg
+ *
+ * @param wavFile
+ * @param cb
+ */
 
 
 function convertWavToMP3(wavFile, cb){
@@ -280,14 +324,19 @@ function convertWavToMP3(wavFile, cb){
 	exec("ffmpeg -i " + wavFile + " " + fileName, function (error, stdout, stderr) { 
 			return cb(fileName);
 	 });
-	//fs.unlinkSync(wavFile);
-	//return cb(fileName);
+	/* we need to remove wav file once mp3 is created but we need more work here.*/
 }
 
 
 
 function puts(error, stdout, stderr) { console.log(stdout) }
 
+/**
+ * Get Image description using Watson VR
+ *
+ * @param fileName
+ * @param callback
+ */
 function getImageDescription(fileName,callback) {
 	var filePath = 'picture/' + fileName;
 	console.log(filePath);
@@ -325,7 +374,12 @@ function getImageDescription(fileName,callback) {
 	});
 }
 
-
+/**
+ * Creates audio with the image content/description
+ *
+ * @param whcContent
+ * @param callback
+ */
 function createAudioFromSelectedImageDesc(whcContent , callback)
 {
 	 
@@ -338,6 +392,13 @@ function createAudioFromSelectedImageDesc(whcContent , callback)
    
 }
 
+/**
+ * Adds aditional description to the provided image desc
+ *
+ * @param description
+ * @param imageDesc
+ * @returns {string}
+ */
 
 function addAdditionalInfoToImageDesc(description, imageDesc)
 {
@@ -350,10 +411,14 @@ function addAdditionalInfoToImageDesc(description, imageDesc)
 }
 
 
-
-
-
-//Mobile upload ends
+/**
+ * Gets text  information from audio file
+ *
+ * Its not used in current solution but has future use.
+ *
+ * @param wavFile
+ * @param cb
+ */
 function getTextFromWav(wavFile,cb)
 { 
 	const SpeechToTextV1 = require('watson-developer-cloud/speech-to-text/v1');
@@ -399,6 +464,13 @@ function getTextFromWav(wavFile,cb)
 }
 
 
+/**
+ * Algorith to decrypt string
+ *
+ * Encryption and decryption uses same algorithm, encryption is used in mobile app
+ * @param str
+ * @returns {string}
+ */
 function decrypt(str) {
     if (!str) str = "";
     str = (str == "undefined" || str == "null") ? "" : str;
@@ -417,7 +489,12 @@ function decrypt(str) {
     }
 }
 
-
+/**
+ * Get text from request sent
+ *
+ * @param req
+ * @returns {string}
+ */
 function getText(req)
 {
 	var text =req.query.text;
@@ -426,6 +503,11 @@ function getText(req)
 	return decrypt(text);
 }
 
+/**
+ * create a string of datetime (timestamp)
+ *
+ * @returns {string}
+ */
 function getDateTime() {
 
     var date = new Date();
@@ -451,7 +533,6 @@ function getDateTime() {
 
 }
 
-//var ipAddress = '192.168.0.103';
 
 app.listen(portNumber, ipAddress);
 //app.listen(3000,'169.47.245.211');
