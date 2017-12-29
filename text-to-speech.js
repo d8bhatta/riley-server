@@ -7,11 +7,11 @@ var text_to_speech = new TextToSpeechV1({
 });
 
 var params = {
-  text: "Welcome to Riley. Please choose What’s That? or Look Around.",
+  text: "This is Riley Help.",
   voice: 'en-US_AllisonVoice', // Optional voice
   accept: 'audio/wav'
 };
 
 // Pipe the synthesized text to a file
-text_to_speech.synthesize(params).pipe(fs.createWriteStream('welcome.wav'));
+text_to_speech.synthesize(params).pipe(fs.createWriteStream('help.wav'));
 
